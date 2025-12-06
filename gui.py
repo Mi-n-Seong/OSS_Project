@@ -3,88 +3,118 @@ from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
 from pathlib import Path
 
-from src.img_organizer import organize_images
+from src.img_org import organize_images
 
 
+# =================== GUI ======================
 class ImageOrganizerGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("📂 이미지 자동 정리 프로그램")
-        self.root.geometry("980x600")
-        self.root.configure(bg="#f0f2f5")
+        self.root.title("📂 이미지 정리 프로그램")
+        self.root.geometry("1050x650")
+        self.root.configure(bg="#1e1f22")
 
         self.selected_folder = None
         self.image_list = []
         self.thumbnail_cache = {}
 
-        # ========== 상단 프레임 ==========
-        top_frame = tk.Frame(root, bg="#ffffff", height=80)
-        top_frame.pack(fill="x")
-
-        self.lbl_title = tk.Label(
-            top_frame,
-            text="이미지 정리 도구",
-            font=("Malgun Gothic", 20, "bold"),
-            bg="#ffffff"
+        # ---------- STYLE 적용 ----------
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure(
+            "TButton",
+            font=("Malgun Gothic", 11),
+            padding=6,
+            background="#3b82f6",
+            foreground="white"
         )
-        self.lbl_title.pack(pady=10)
+        style.configure("TCheckbutton", background="#1e1f22", foreground="white")
+        style.configure("TProgressbar", troughcolor="#2a2b2e", background="#3b82f6")
 
-        # ========== 폴더 선택 버튼 ==========
-        btn_frame = tk.Frame(root, bg="#f0f2f5")
-        btn_frame.pack(pady=10)
+        # ---------- 상단 ----------
+        title = tk.Label(
+            root,
+            text="📁 이미지 자동/수동 정리 도구",
+            fg="white",
+            bg="#1e1f22",
+            font=("Malgun Gothic", 22, "bold")
+        )
+        title.pack(pady=15)
 
-        self.btn_select = tk.Button(
-            btn_frame,
+        # ---------- 옵션 + 폴더 선택 ----------
+        option_frame = tk.Frame(root, bg="#1e1f22")
+        option_frame.pack(fill="x")
+
+        self.btn_select = ttk.Button(
+            option_frame,
             text="📁 정리할 폴더 선택",
-            font=("Malgun Gothic", 12),
-            command=self.select_folder,
-            bg="#4a90e2", fg="white", width=20
+            command=self.select_folder
         )
-        self.btn_select.pack()
+        self.btn_select.grid(row=0, column=0, padx=20, pady=10)
 
-        # ========== 본문 영역 (좌: 이미지 리스트 / 우: 미리보기) ==========
-        main_frame = tk.Frame(root, bg="#f0f2f5")
-        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        # 옵션 체크박스
+        self.opt_dup = tk.BooleanVar()
+        self.opt_sim = tk.BooleanVar()
+        self.opt_res = tk.BooleanVar()
+        self.opt_auto = tk.BooleanVar()
 
-        # 좌측 이미지 리스트
-        left_frame = tk.Frame(main_frame, bg="#ffffff", width=260)
+        ttk.Checkbutton(option_frame, text="정확한 중복 정리", variable=self.opt_dup).grid(row=0, column=1)
+        ttk.Checkbutton(option_frame, text="유사 이미지 정리", variable=self.opt_sim).grid(row=0, column=2)
+        ttk.Checkbutton(option_frame, text="해상도 정리 (범위별)", variable=self.opt_res).grid(row=0, column=3)
+
+        ttk.Checkbutton(
+            option_frame,
+            text="자동 정리 (모든 옵션 적용)",
+            variable=self.opt_auto,
+            command=self.apply_auto
+        ).grid(row=0, column=4)
+
+        # ---------- 중간 영역 ----------
+        body = tk.Frame(root, bg="#1e1f22")
+        body.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # 좌측 리스트
+        left_frame = tk.Frame(body, bg="#2a2b2e", width=300)
         left_frame.pack(side="left", fill="y")
         left_frame.pack_propagate(False)
 
-        lbl_list = tk.Label(left_frame, text="이미지 목록", font=("Malgun Gothic", 12, "bold"), bg="#ffffff")
-        lbl_list.pack(pady=5)
+        tk.Label(left_frame, text="📃 이미지 목록", bg="#2a2b2e", fg="white",
+                 font=("Malgun Gothic", 12, "bold")).pack(pady=5)
 
-        self.listbox = tk.Listbox(left_frame, font=("Malgun Gothic", 10))
+        self.listbox = tk.Listbox(left_frame, bg="#1e1f22", fg="white",
+                                  selectbackground="#3b82f6", font=("Malgun Gothic", 10))
         self.listbox.pack(fill="both", expand=True, padx=10, pady=10)
         self.listbox.bind("<<ListboxSelect>>", self.show_preview)
 
-        # 우측 이미지 미리보기
-        preview_frame = tk.Frame(main_frame, bg="#ffffff")
-        preview_frame.pack(side="right", fill="both", expand=True)
+        # 이미지 미리보기
+        right_frame = tk.Frame(body, bg="#2a2b2e")
+        right_frame.pack(side="right", fill="both", expand=True)
 
-        lbl_preview = tk.Label(preview_frame, text="이미지 미리보기", font=("Malgun Gothic", 12, "bold"), bg="#ffffff")
-        lbl_preview.pack(pady=5)
+        tk.Label(right_frame, text="🖼 이미지 미리보기", fg="white", bg="#2a2b2e",
+                 font=("Malgun Gothic", 12, "bold")).pack(pady=5)
 
-        self.canvas = tk.Canvas(preview_frame, bg="#ffffff")
-        self.canvas.pack(fill="both", expand=True)
+        self.canvas = tk.Canvas(right_frame, bg="#1e1f22")
+        self.canvas.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # 하단 진행 프레임
-        bottom_frame = tk.Frame(root, bg="#f0f2f5")
-        bottom_frame.pack(fill="x")
+        # ---------- 진행바 + 실행 버튼 ----------
+        bottom = tk.Frame(root, bg="#1e1f22")
+        bottom.pack(fill="x")
 
-        self.progress = ttk.Progressbar(bottom_frame, length=400, mode="determinate")
+        self.progress = ttk.Progressbar(bottom, length=500, mode="determinate")
         self.progress.pack(pady=10)
 
-        self.btn_start = tk.Button(
-            bottom_frame,
-            text="🚀 자동 정리 시작",
-            font=("Malgun Gothic", 13),
-            bg="#27ae60", fg="white",
-            command=self.run_organize
-        )
-        self.btn_start.pack(pady=5)
+        self.btn_run = ttk.Button(bottom, text="🚀 정리 실행", command=self.run_organize)
+        self.btn_run.pack(pady=5)
 
-    # ========== 폴더 선택 ==========
+    # =========================================================
+    # 옵션 - 자동 정리
+    def apply_auto(self):
+        if self.opt_auto.get():
+            self.opt_dup.set(True)
+            self.opt_sim.set(True)
+            self.opt_res.set(True)
+
+    # =========================================================
     def select_folder(self):
         folder = filedialog.askdirectory()
         if not folder:
@@ -93,76 +123,62 @@ class ImageOrganizerGUI:
         self.selected_folder = Path(folder)
         self.load_images()
 
-    # ========== 리스트 로딩 ==========
+    # =========================================================
     def load_images(self):
+        exts = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"]
         self.image_list.clear()
         self.listbox.delete(0, tk.END)
-        self.thumbnail_cache.clear()
-
-        exts = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"]
 
         for p in self.selected_folder.rglob("*"):
             if p.suffix.lower() in exts:
                 self.image_list.append(p)
                 self.listbox.insert(tk.END, p.name)
 
-    # ========== 미리보기 ==========
+    # =========================================================
     def show_preview(self, event):
         if not self.listbox.curselection():
             return
-
         index = self.listbox.curselection()[0]
         img_path = self.image_list[index]
 
-        if img_path in self.thumbnail_cache:
-            img = self.thumbnail_cache[img_path]
-        else:
-            try:
-                img = Image.open(img_path)
-                img.thumbnail((600, 600))
-                img = ImageTk.PhotoImage(img)
-                self.thumbnail_cache[img_path] = img
-            except:
-                return
+        try:
+            img = Image.open(img_path)
+            img.thumbnail((700, 700))
+            img = ImageTk.PhotoImage(img)
+        except:
+            return
 
         self.canvas.delete("all")
-        self.canvas.create_image(300, 300, image=img)
+        self.canvas.create_image(350, 350, image=img)
         self.canvas.image = img
 
-    # ========== 자동 정리 실행 ==========
+    # =========================================================
     def run_organize(self):
         if not self.selected_folder:
             messagebox.showerror("오류", "폴더를 먼저 선택하세요.")
             return
 
-        total = len(self.image_list)
-        if total == 0:
-            messagebox.showinfo("안내", "이미지가 없습니다.")
-            return
-
-        self.progress["value"] = 0
-        self.progress["maximum"] = total
+        # 옵션 읽기
+        dup = self.opt_dup.get()
+        sim = self.opt_sim.get()
+        res = self.opt_res.get()
+        auto = self.opt_auto.get()
 
         summary, logs = organize_images(
             self.selected_folder,
-            move_duplicates=True,
-            move_similar=True,
-            sort_resolution=True,
-            sort_ext=False,
-            sort_date=False,
+            move_duplicates=dup,
+            move_similar=sim,
+            sort_resolution=res,
+            auto=auto,
             copy_mode=True
         )
 
-        # 진행률 갱신
-        for i in range(total):
+        # 진행률
+        total = len(self.image_list)
+        self.progress["value"] = 0
+        self.progress["maximum"] = total
+        for _ in range(total):
             self.progress["value"] += 1
             self.root.update()
-        
-        messagebox.showinfo("완료", "이미지 정리 완료!")
 
-
-# 실행
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = ImageOrganizerGUI(root)
-    root.mainloop()
+        messagebox.showinfo("완료", "이미지 정리가 완료되었습니다!")
