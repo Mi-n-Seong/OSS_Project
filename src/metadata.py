@@ -1,17 +1,38 @@
-import csv
-from PIL import Image
 from pathlib import Path
+from datetime import datetime
+from PIL import Image
 
 
-def write_metadata_csv(files, output_csv: Path):
-    with open(output_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["파일명", "해상도", "용량(KB)"])
+def get_resolution(path: Path):
+    try:
+        with Image.open(path) as img:
+            return img.size  # (w, h)
+    except:
+        return None
 
-        for img in files:
-            try:
-                w, h = Image.open(img).size
-                size = img.stat().st_size // 1024
-                writer.writerow([img.name, f"{w}x{h}", size])
-            except:
-                pass
+
+def get_exif_datetime(path: Path):
+    try:
+        with Image.open(path) as img:
+            exif = img.getexif()
+            if 36867 in exif:
+                date_str = exif[36867]
+                return datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
+    except:
+        pass
+    return None
+
+
+def get_file_date(path: Path):
+    exif_dt = get_exif_datetime(path)
+    if exif_dt:
+        return exif_dt.date()
+    return datetime.fromtimestamp(path.stat().st_mtime).date()
+
+
+def get_extension(path: Path):
+    return path.suffix.lower().replace(".", "")
+
+
+def get_file_size(path: Path):
+    return path.stat().st_size
