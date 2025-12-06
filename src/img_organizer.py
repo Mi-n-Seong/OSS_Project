@@ -4,7 +4,7 @@ import imagehash
 from PIL import Image
 
 from src.file_utils import safe_copy
-from src.metadata import get_resolution, get_file_date
+from src.metadata import get_resolution
 
 SUPPORTED_EXT = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}
 
@@ -46,14 +46,14 @@ def _handle_duplicates(files, root, logs, summary):
 
         logs.append(f"\n[중복 그룹 {key}] 기준 이미지: {base.name}")
 
-        # 기준 이미지도 복사
+        # 기준 이미지 복사
         base_moved = safe_copy(base, out / key)
         logs.append(f" - 기준 이미지 '{base.name}' 복사됨 → {base_moved}")
 
         for p in group[1:]:
             moved = safe_copy(p, out / key)
             logs.append(
-                f" - '{p.name}' 파일은 '{base.name}' 와 동일하여 "
+                f" - '{p.name}' 파일은 '{base.name}' 과 동일하여 "
                 f"중복 그룹 '{key}'에 복사되었습니다. → {moved}"
             )
             count += 1
@@ -117,7 +117,6 @@ def _handle_similar(files, root, logs, summary):
 
     for group in groups:
 
-        # 그룹 크기 1 → 스킵
         if len(group) < 2:
             continue
 
@@ -126,7 +125,6 @@ def _handle_similar(files, root, logs, summary):
 
         logs.append(f"\n[유사 그룹 {real_group_index}] 기준 이미지: {base.name}")
 
-        # 기준 이미지도 복사
         base_moved = safe_copy(base, gdir)
         logs.append(f" - 기준 이미지 '{base.name}' 복사됨 → {base_moved}")
 
@@ -144,7 +142,7 @@ def _handle_similar(files, root, logs, summary):
     logs.append(f"[유사] 총 {count}개의 유사 이미지를 복사했습니다.")
 
 
-# ============= 해상도 정리 (넓은 범위 기준) =============
+# ============= 해상도 정리 =============
 def _handle_resolution(files, root, logs, summary):
     out = root / "_by_resolution"
     count = 0
@@ -157,7 +155,7 @@ def _handle_resolution(files, root, logs, summary):
         w, h = res
         longest = max(w, h)
 
-        # 너가 원하는 넓은 범위 (small / medium / large)
+        # 넓은 범위 해상도 그룹
         if longest < 1280:
             group = "small"
         elif longest < 2560:
@@ -174,25 +172,6 @@ def _handle_resolution(files, root, logs, summary):
     summary["해상도 정리"] = count
 
 
-# ============= 날짜 정리 =============
-def _handle_date(files, root, logs, summary):
-    out = root / "_by_date"
-    count = 0
-
-    for p in files:
-        date = get_file_date(p)
-        date_str = date.isoformat()  # ← 날짜 문자열로 변환
-
-        moved = safe_copy(p, out / date_str)
-        logs.append(
-            f"[날짜] '{p.name}' 파일은 날짜 '{date_str}' 폴더로 복사됨 → {moved}"
-        )
-        count += 1
-
-    summary["날짜 정리"] = count
-
-
-
 # ============= 메인 정리 함수 =============
 def organize_images(
     root: Path,
@@ -200,7 +179,6 @@ def organize_images(
     move_duplicates=False,
     move_similar=False,
     sort_resolution=False,
-    sort_date=False,
     auto=False,
 ):
     files = iter_image_files(root)
@@ -211,15 +189,15 @@ def organize_images(
 
     if auto:
         logs.append("[INFO] 자동 정리(AUTO) 모드 활성화")
-        move_duplicates = move_similar = sort_resolution = sort_date = True
+        move_duplicates = move_similar = sort_resolution = True
 
     if move_duplicates:
         _handle_duplicates(files, root, logs, summary)
+
     if move_similar:
         _handle_similar(files, root, logs, summary)
+
     if sort_resolution:
         _handle_resolution(files, root, logs, summary)
-    if sort_date:
-        _handle_date(files, root, logs, summary)
 
     return summary, logs

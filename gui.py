@@ -1,141 +1,170 @@
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import filedialog, messagebox, scrolledtext
 from pathlib import Path
 
-from src.img_organizer import organize_images
+from src.img_organizer import organize_images  # 정리 함수 import
 
 
+# =========================
+#   스타일 설정 함수
+# =========================
+def apply_style(widget):
+    widget.configure(
+        bg="#1e1f22",
+        fg="#ffffff",
+        font=("Malgun Gothic", 11),
+        bd=0,
+    )
+
+
+def styled_button(master, text, command):
+    btn = tk.Button(
+        master,
+        text=text,
+        command=command,
+        bg="#3a3b3e",
+        fg="#ffffff",
+        font=("Malgun Gothic", 11, "bold"),
+        activebackground="#505154",
+        activeforeground="#ffffff",
+        relief="flat",
+        padx=12,
+        pady=6,
+    )
+    return btn
+
+
+# =========================
+#        메인 GUI 클래스
+# =========================
 class ImageOrganizerGUI:
     def __init__(self, root):
         self.root = root
-        root.title("🖼 이미지 정리 프로그램")
-        root.geometry("720x520")
-        root.configure(bg="#f2f2f2")
+        root.title("이미지 정리 프로그램")
+        root.geometry("750x650")
+        root.configure(bg="#1e1f22")
 
-        self.root.option_add("*Font", "맑은 고딕 10")
-
-        # =================== 상단 제목 ===================
-        top_frame = tk.Frame(root, bg="#f2f2f2")
-        top_frame.pack(fill="x", pady=10)
-
-        self.lbl_title = tk.Label(
-            top_frame,
-            text="이미지 정리 프로그램",
-            font=("맑은 고딕", 16, "bold"),
-            bg="#f2f2f2"
+        # ===== 상단 타이틀 =====
+        self.title_label = tk.Label(
+            root,
+            text="📂 이미지 자동 정리 도구",
+            bg="#1e1f22",
+            fg="#ffffff",
+            font=("Malgun Gothic", 18, "bold"),
         )
-        self.lbl_title.pack()
+        self.title_label.pack(pady=15)
 
-        # =================== 폴더 선택 ===================
-        path_frame = tk.Frame(root, bg="#f2f2f2")
-        path_frame.pack(fill="x", padx=20, pady=10)
+        # ===== 폴더 선택 영역 =====
+        folder_frame = tk.Frame(root, bg="#1e1f22")
+        folder_frame.pack(pady=10)
 
-        tk.Label(path_frame, text="📁 정리할 폴더:", bg="#f2f2f2").pack(side="left")
+        self.lbl_folder = tk.Label(
+            folder_frame,
+            text="📁 선택한 폴더: 없음",
+            bg="#1e1f22",
+            fg="#cccccc",
+            font=("Malgun Gothic", 11),
+        )
+        self.lbl_folder.pack(side="left", padx=10)
 
-        self.path_var = tk.StringVar()
-        self.entry_path = tk.Entry(path_frame, textvariable=self.path_var, width=50)
-        self.entry_path.pack(side="left", padx=10)
+        btn_select = styled_button(folder_frame, "폴더 선택", self.select_folder)
+        btn_select.pack(side="left", padx=10)
 
-        ttk.Button(path_frame, text="찾기", command=self.select_folder).pack(side="left")
-
-        # =================== 옵션 체크 ===================
-        option_frame = tk.LabelFrame(root, text="정리 옵션", padx=15, pady=10)
+        # ===== 옵션 영역 (카드 스타일) =====
+        option_frame = tk.LabelFrame(
+            root,
+            text="정리 옵션 선택",
+            bg="#2a2b2e",
+            fg="#ffffff",
+            font=("Malgun Gothic", 13, "bold"),
+            padx=10,
+            pady=10,
+        )
         option_frame.pack(fill="x", padx=20, pady=10)
 
         self.opt_dup = tk.BooleanVar()
         self.opt_sim = tk.BooleanVar()
         self.opt_res = tk.BooleanVar()
-        self.opt_auto = tk.BooleanVar()
 
-        ttk.Checkbutton(option_frame, text="정확한 중복 정리", variable=self.opt_dup).pack(anchor="w")
-        ttk.Checkbutton(option_frame, text="유사 이미지 정리", variable=self.opt_sim).pack(anchor="w")
-        ttk.Checkbutton(option_frame, text="해상도별 정리 (범위)", variable=self.opt_res).pack(anchor="w")
-        ttk.Checkbutton(option_frame, text="전체 자동 정리 (--auto)", variable=self.opt_auto).pack(anchor="w")
+        self.chk1 = tk.Checkbutton(
+            option_frame, text="정확한 중복 정리", variable=self.opt_dup,
+            bg="#2a2b2e", fg="#ffffff", selectcolor="#2a2b2e",
+            font=("Malgun Gothic", 11)
+        )
+        self.chk1.pack(anchor="w")
 
-        # =================== 실행 버튼 ===================
-        btn_frame = tk.Frame(root, bg="#f2f2f2")
-        btn_frame.pack(pady=10)
+        self.chk2 = tk.Checkbutton(
+            option_frame, text="유사 이미지 정리", variable=self.opt_sim,
+            bg="#2a2b2e", fg="#ffffff", selectcolor="#2a2b2e",
+            font=("Malgun Gothic", 11)
+        )
+        self.chk2.pack(anchor="w")
 
-        self.btn_run = tk.Button(
-            btn_frame,
-            text="정리 실행",
-            width=15,
-            height=2,
-            bg="#4a72ff",
-            fg="white",
-            font=("맑은 고딕", 12, "bold"),
-            command=self.run,
+        self.chk3 = tk.Checkbutton(
+            option_frame, text="해상도 범위 정리", variable=self.opt_res,
+            bg="#2a2b2e", fg="#ffffff", selectcolor="#2a2b2e",
+            font=("Malgun Gothic", 11)
+        )
+        self.chk3.pack(anchor="w")
+
+        # ===== 실행 버튼 =====
+        btn_run = styled_button(root, "✨ 정리 실행", self.run)
+        btn_run.pack(pady=15)
+
+        # ===== 로그 영역 =====
+        self.txt_log = scrolledtext.ScrolledText(
+            root,
+            width=88,
+            height=18,
+            bg="#121314",
+            fg="#e0e0e0",
+            font=("Consolas", 10),
             relief="flat",
-            activebackground="#3f63e0",
+            insertbackground="#ffffff",
         )
-        self.btn_run.pack()
+        self.txt_log.pack(padx=20, pady=10)
 
-        # =================== 로그 출력 ===================
-        log_frame = tk.LabelFrame(root, text="정리 로그", padx=10, pady=10)
-        log_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        # 초기 폴더 경로
+        self.selected_folder = None
 
-        self.txt_log = tk.Text(
-            log_frame,
-            height=15,
-            state="disabled",
-            bg="#ffffff"
-        )
-        self.txt_log.pack(fill="both", expand=True)
-
-    # ------------------------ 기능 ------------------------
-
-    def log(self, text):
-        self.txt_log.configure(state="normal")
-        self.txt_log.insert("end", text + "\n")
-        self.txt_log.configure(state="disabled")
-        self.txt_log.see("end")
-
+    # =========================
+    #       폴더 선택
+    # =========================
     def select_folder(self):
         folder = filedialog.askdirectory()
         if folder:
-            self.path_var.set(folder)
+            self.selected_folder = Path(folder)
+            self.lbl_folder.config(text=f"📁 선택한 폴더: {folder}")
 
+    # =========================
+    #        정리 실행
+    # =========================
     def run(self):
-        folder = self.path_var.get().strip()
-        if not folder:
-            messagebox.showerror("오류", "폴더를 선택하세요.")
+        if not self.selected_folder:
+            messagebox.showerror("오류", "먼저 폴더를 선택하세요.")
             return
 
-        root_path = Path(folder)
+        summary, logs = organize_images(
+            self.selected_folder,
+            move_duplicates=self.opt_dup.get(),
+            move_similar=self.opt_sim.get(),
+            sort_resolution=self.opt_res.get(),
+        )
 
-        # 로그 초기화
-        self.txt_log.configure(state="normal")
-        self.txt_log.delete("1.0", "end")
-        self.txt_log.configure(state="disabled")
+        self.txt_log.delete(1.0, tk.END)
 
-        self.log(f"[INFO] 선택한 폴더: {root_path}")
+        self.txt_log.insert(tk.END, "====== 실행 결과 ======\n")
+        for key, val in summary.items():
+            self.txt_log.insert(tk.END, f"{key}: {val}\n")
 
-        try:
-            summary, logs = organize_images(
-                root_path,
-                move_duplicates=self.opt_dup.get(),
-                move_similar=self.opt_sim.get(),
-                sort_resolution=self.opt_res.get(),
-                sort_ext=False,
-                sort_date=False,
-                auto=self.opt_auto.get(),
-            )
-
-            self.log("\n===== 실행 결과 =====")
-            for k, v in summary.items():
-                self.log(f"{k}: {v}")
-
-            self.log("\n===== 상세 로그 =====")
-            for line in logs:
-                self.log(line)
-
-            messagebox.showinfo("완료", "이미지 정리가 완료되었습니다.")
-
-        except Exception as e:
-            self.log(f"[ERROR] {e}")
-            messagebox.showerror("오류 발생", str(e))
+        self.txt_log.insert(tk.END, "\n====== 상세 로그 ======\n")
+        for line in logs:
+            self.txt_log.insert(tk.END, line + "\n")
 
 
+# =========================
+#         실행부
+# =========================
 if __name__ == "__main__":
     root = tk.Tk()
     app = ImageOrganizerGUI(root)
