@@ -2,6 +2,9 @@ import os
 import hashlib
 from pathlib import Path
 
+from PIL import Image
+import imagehash   # perceptual hash
+
 # 처리할 이미지 확장자 목록
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
@@ -19,6 +22,10 @@ def iter_image_files(root: Path):
     return files
 
 
+# -------------------------------
+# 1) 완전 중복 탐지 (SHA256)
+# -------------------------------
+
 def get_file_hash(path: Path, chunk_size: int = 8192):
     """
     이미지 파일의 SHA256 해시값 생성.
@@ -35,10 +42,9 @@ def get_file_hash(path: Path, chunk_size: int = 8192):
     return h.hexdigest()
 
 
-def find_duplicates(files):
+def find_exact_duplicates(files):
     """
-    파일 리스트를 받아 해시값 -> 파일 리스트로 매핑.
-    동일한 해시값이 2개 이상이면 중복 그룹으로 판단.
+    SHA256 기반 완전 중복 탐지
     """
     hash_map = {}
 
@@ -46,6 +52,67 @@ def find_duplicates(files):
         h = get_file_hash(p)
         hash_map.setdefault(h, []).append(p)
 
-    # 중복 그룹만 따로 반환
-    duplicates = {h: paths for h, paths in hash_map.items() if len(paths) > 1}
-    return duplicates
+    exact = {h: paths for h, paths in hash_map.items() if len(paths) > 1}
+    return exact
+
+
+# -------------------------------
+# 2) 유사 이미지 탐지 (Perceptual Hash)
+# -------------------------------
+
+def get_phash(path: Path):
+    """
+    Perceptual hash 기반 이미지 유사도 계산
+    """
+    try:
+        img = Image.open(path)
+        return imagehash.phash(img)
+    except Exception:
+        return None
+
+
+def hamming_distance(h1, h2):
+    """해밍 거리 계산"""
+    return abs(h1 - h2)
+
+
+def find_similar_images(files, threshold=5):
+    """
+    perceptual hash 기반 유사 이미지 탐지.
+    threshold = 허용 거리 (작을수록 엄격)
+    """
+    phash_map = {}
+    for p in files:
+        h = get_phash(p)
+        if h is not None:
+            phash_map[p] = h
+
+    checked = set()
+    groups = []
+
+    paths = list(phash_map.keys())
+
+    for i in range(len(paths)):
+        base = paths[i]
+        if base in checked:
+            continue
+
+        base_hash = phash_map[base]
+        group = [base]
+
+        for j in range(i + 1, len(paths)):
+            comp = paths[j]
+            if comp in checked:
+                continue
+
+            dist = hamming_distance(base_hash, phash_map[comp])
+            if dist <= threshold:
+                group.append(comp)
+                checked.add(comp)
+
+        if len(group) > 1:
+            groups.append(group)
+
+        checked.add(base)
+
+    return groups

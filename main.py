@@ -1,9 +1,11 @@
 from pathlib import Path
-from src.img_organizer import iter_image_files, find_duplicates
-
+from src.img_organizer import (
+    iter_image_files,
+    find_exact_duplicates,
+    find_similar_images
+)
 
 def main():
-    # 사용자에게 이미지 폴더 경로 입력 받기
     root_str = input("정리할 이미지 폴더 경로를 입력하세요: ")
     root = Path(root_str)
 
@@ -15,21 +17,37 @@ def main():
     files = iter_image_files(root)
     print(f"[INFO] 이미지 파일 {len(files)}개 발견\n")
 
-    print("[INFO] 중복 검사 중...")
-    duplicates = find_duplicates(files)
+    # ---------------------
+    # 1) 완전 중복 탐지
+    # ---------------------
+    print("[INFO] SHA256 기반 완전 중복 검사 중...")
+    exact = find_exact_duplicates(files)
 
-    if not duplicates:
-        print("[INFO] 중복 이미지 없음")
-        return
+    if exact:
+        print(f"\n[INFO] 완전 중복 그룹 {len(exact)}개 발견!")
+        for i, (h, paths) in enumerate(exact.items(), start=1):
+            print(f"[Exact Group {i}] 해시 = {h}")
+            for p in paths:
+                print(" -", p)
+            print()
+    else:
+        print("[INFO] 완전 중복 없음.\n")
 
-    print(f"[INFO] 중복 그룹 {len(duplicates)}개 발견!\n")
+    # ---------------------
+    # 2) 유사 이미지 탐지
+    # ---------------------
+    print("[INFO] Perceptual hash 기반 유사 이미지 검사 중 (threshold=5)...")
+    similar_groups = find_similar_images(files, threshold=5)
 
-    # 중복 그룹 출력
-    for i, (h, paths) in enumerate(duplicates.items(), start=1):
-        print(f"[Group {i}] 해시 = {h}")
-        for p in paths:
-            print(" -", p)
-        print()
+    if similar_groups:
+        print(f"\n[INFO] 유사 이미지 그룹 {len(similar_groups)}개 발견!")
+        for i, group in enumerate(similar_groups, start=1):
+            print(f"[Similar Group {i}]")
+            for p in group:
+                print(" -", p)
+            print()
+    else:
+        print("[INFO] 유사 이미지 없음.\n")
 
 
 if __name__ == "__main__":
