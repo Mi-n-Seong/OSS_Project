@@ -3,7 +3,7 @@ from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
 from pathlib import Path
 
-from src.img_org import organize_images
+from src.img_organizer import organize_images
 
 
 class ImageOrganizerGUI:
