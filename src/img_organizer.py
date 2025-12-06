@@ -3,7 +3,7 @@ import hashlib
 import imagehash
 from PIL import Image
 
-from src.file_utils import safe_move
+from src.file_utils import safe_copy
 from src.metadata import get_resolution, get_file_date
 
 SUPPORTED_EXT = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}
@@ -46,16 +46,20 @@ def _handle_duplicates(files, root, logs, summary):
 
         logs.append(f"\n[중복 그룹 {key}] 기준 이미지: {base.name}")
 
+        # 기준 이미지도 복사
+        base_moved = safe_copy(base, out / key)
+        logs.append(f" - 기준 이미지 '{base.name}' 복사됨 → {base_moved}")
+
         for p in group[1:]:
-            moved = safe_move(p, out / key)
+            moved = safe_copy(p, out / key)
             logs.append(
-                f" - '{p.name}' 파일은 '{base.name}' 와(과) 완전히 동일하여 "
-                f"중복 폴더('{key}')로 이동되었습니다. → {moved}"
+                f" - '{p.name}' 파일은 '{base.name}' 와 동일하여 "
+                f"중복 그룹 '{key}'에 복사되었습니다. → {moved}"
             )
             count += 1
 
     summary["정확 중복 정리"] = count
-    logs.append(f"[중복] 총 {count}개의 중복 이미지를 정리했습니다.")
+    logs.append(f"[중복] 총 {count}개의 중복 이미지를 복사했습니다.")
 
 
 # ============= 유사 이미지 검사 =============
@@ -104,44 +108,43 @@ def find_similar_images(files, threshold=5):
 def _handle_similar(files, root, logs, summary):
     groups = find_similar_images(files)
     if not groups:
-        logs.append("[유사] 비슷한 이미지 없음.")
+        logs.append("[유사] 비슷한 이미지가 발견되지 않았습니다.")
         return
 
     out = root / "_similar"
     count = 0
     real_group_index = 1
 
-    for idx, group in enumerate(groups, start=1):
+    for group in groups:
 
-        # 유사 이미지가 1개뿐이면 그룹 만들지 않음
+        # 그룹 크기 1 → 스킵
         if len(group) < 2:
             continue
 
         base = group[0]
         gdir = out / f"group_{real_group_index}"
 
-        logs.append(f"\n[유사] 그룹 {real_group_index} 생성 (기준 이미지: {base.name})")
+        logs.append(f"\n[유사 그룹 {real_group_index}] 기준 이미지: {base.name}")
 
-        # 기준 이미지도 이동시키기
-        moved_base = safe_move(base, gdir)
-        logs.append(f" - 기준 이미지 '{base.name}' 이동됨 → {moved_base}")
+        # 기준 이미지도 복사
+        base_moved = safe_copy(base, gdir)
+        logs.append(f" - 기준 이미지 '{base.name}' 복사됨 → {base_moved}")
 
         for p in group[1:]:
-            moved = safe_move(p, gdir)
+            moved = safe_copy(p, gdir)
             logs.append(
-                f" - '{p.name}' 파일은 '{base.name}' 와 유사하여 "
-                f"그룹 {real_group_index}로 이동됨 → {moved}"
+                f" - '{p.name}' 파일은 '{base.name}' 과 유사하여 "
+                f"그룹 {real_group_index}에 복사됨 → {moved}"
             )
             count += 1
 
         real_group_index += 1
 
     summary["유사 이미지 정리 수"] = count
-    logs.append(f"[유사] 총 {count}개의 유사 이미지를 정리했습니다.")
+    logs.append(f"[유사] 총 {count}개의 유사 이미지를 복사했습니다.")
 
 
-
-# ============= 해상도 정리 =============
+# ============= 해상도 정리 (넓은 범위 기준) =============
 def _handle_resolution(files, root, logs, summary):
     out = root / "_by_resolution"
     count = 0
@@ -154,18 +157,17 @@ def _handle_resolution(files, root, logs, summary):
         w, h = res
         longest = max(w, h)
 
-        # 해상도 구간을 넓게 설정
+        # 너가 원하는 넓은 범위 (small / medium / large)
         if longest < 1280:
-            group = "small"      # 작은 이미지
+            group = "small"
         elif longest < 2560:
-            group = "medium"     # 일반/고해상도
+            group = "medium"
         else:
-            group = "large"      # 초고해상도
+            group = "large"
 
-        moved = safe_move(p, out / group)
+        moved = safe_copy(p, out / group)
         logs.append(
-            f"[해상도] '{p.name}' 파일은 {w}x{h} 해상도이며 "
-            f"'{group}' 그룹으로 분류되었습니다. → {moved}"
+            f"[해상도] '{p.name}' ({w}x{h}) → '{group}' 그룹으로 복사됨 → {moved}"
         )
         count += 1
 
@@ -179,10 +181,9 @@ def _handle_date(files, root, logs, summary):
 
     for p in files:
         date = get_file_date(p)
-        moved = safe_move(p, out / date)
+        moved = safe_copy(p, out / date)
         logs.append(
-            f"[날짜] '{p.name}' 파일은 날짜 '{date}' 기준으로 "
-            f"'{date}' 폴더로 이동되었습니다. → {moved}"
+            f"[날짜] '{p.name}' 파일은 날짜 '{date}' 폴더로 복사됨 → {moved}"
         )
         count += 1
 
