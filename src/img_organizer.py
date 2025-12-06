@@ -3,24 +3,19 @@ import hashlib
 import imagehash
 from PIL import Image
 
-# 🔥 절대 경로 import (중요!! ImportError 방지)
 from src.file_utils import safe_move
-from src.metadata import get_resolution, get_file_date, get_extension
-
+from src.metadata import get_resolution, get_file_date
 
 SUPPORTED_EXT = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}
 
 
-# ================= 이미지 스캔 =================
-
-def iter_image_files(root: Path) -> list[Path]:
-    """폴더 내부 모든 이미지 파일 재귀 탐색"""
+# ============= 이미지 스캔 =============
+def iter_image_files(root: Path):
     return [p for p in root.rglob("*") if p.suffix.lower() in SUPPORTED_EXT]
 
 
-# ================= 정확한 중복 (SHA256) =================
-
-def sha256(path: Path) -> str:
+# ============= SHA256 중복 검사 =============
+def sha256(path: Path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
@@ -28,38 +23,42 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def find_exact_duplicates(files: list[Path]):
-    hash_map: dict[str, list[Path]] = {}
+def find_exact_duplicates(files):
+    mapping = {}
     for p in files:
         h = sha256(p)
-        hash_map.setdefault(h, []).append(p)
-    return {k: v for k, v in hash_map.items() if len(v) > 1}
+        mapping.setdefault(h, []).append(p)
+    return {h: g for h, g in mapping.items() if len(g) > 1}
 
 
-def _handle_duplicates(files, root: Path, logs, summary):
-    dup_map = find_exact_duplicates(files)
-    if not dup_map:
-        logs.append("[중복] 정확한 중복 없음.")
+def _handle_duplicates(files, root, logs, summary):
+    dup = find_exact_duplicates(files)
+    if not dup:
+        logs.append("[중복] 중복된 이미지가 발견되지 않았습니다.")
         return
 
     out = root / "_duplicates"
     count = 0
 
-    for h, paths in dup_map.items():
-        keep = paths[0]
-        logs.append(f"[중복] 그룹 (기준={keep.name})")
+    for h, group in dup.items():
+        base = group[0]
+        key = h[:8]
 
-        for p in paths[1:]:
-            moved = safe_move(p, out / h[:8])
-            logs.append(f"  - 이동: {p.name} -> {moved}")
+        logs.append(f"\n[중복 그룹 {key}] 기준 이미지: {base.name}")
+
+        for p in group[1:]:
+            moved = safe_move(p, out / key)
+            logs.append(
+                f" - '{p.name}' 파일은 '{base.name}' 와(과) 완전히 동일하여 "
+                f"중복 폴더('{key}')로 이동되었습니다. → {moved}"
+            )
             count += 1
 
-    summary["정확한 중복 이미지 정리 수"] = count
-    logs.append(f"[중복] 총 {count}개 정리 완료.")
+    summary["정확 중복 정리"] = count
+    logs.append(f"[중복] 총 {count}개의 중복 이미지를 정리했습니다.")
 
 
-# ================= 유사 이미지 (pHash) =================
-
+# ============= 유사 이미지 검사 =============
 def phash(path: Path):
     try:
         with Image.open(path) as img:
@@ -68,14 +67,14 @@ def phash(path: Path):
         return None
 
 
-def find_similar_images(files: list[Path], threshold=5):
-    hashes = {}
+def find_similar_images(files, threshold=5):
+    hashed = {}
     for p in files:
         h = phash(p)
         if h is not None:
-            hashes[p] = h
+            hashed[p] = h
 
-    items = list(hashes.items())
+    items = list(hashed.items())
     used = set()
     groups = []
 
@@ -85,12 +84,13 @@ def find_similar_images(files: list[Path], threshold=5):
             continue
 
         group = [p1]
+
         for j in range(i + 1, len(items)):
             p2, h2 = items[j]
             if p2 in used:
                 continue
 
-            if h1 - h2 <= threshold:  # 유사도 판단
+            if h1 - h2 <= threshold:
                 group.append(p2)
                 used.add(p2)
 
@@ -101,34 +101,43 @@ def find_similar_images(files: list[Path], threshold=5):
     return groups
 
 
-def _handle_similar(files, root: Path, logs, summary):
-    groups = find_similar_images(files, threshold=5)
+def _handle_similar(files, root, logs, summary):
+    groups = find_similar_images(files)
     if not groups:
-        logs.append("[유사] 유사 이미지 없음.")
+        logs.append("[유사] 비슷한 이미지 없음.")
         return
 
     out = root / "_similar"
     count = 0
+    real_group_index = 1  # 실제 생성되는 그룹 번호
 
     for idx, group in enumerate(groups, start=1):
-        gdir = out / f"group_{idx}"
-        logs.append(f"[유사] 그룹 {idx}:")
 
-        keep = group[0]
-        logs.append(f"  - 기준 이미지: {keep.name}")
+        # ⚠ 그룹에 이미지가 1개뿐이면 스킵 (유사 이미지 없음)
+        if len(group) < 2:
+            continue
+
+        base = group[0]
+        gdir = out / f"group_{real_group_index}"
+
+        logs.append(f"\n[유사] 그룹 {real_group_index}: 기준 이미지: {base.name}")
 
         for p in group[1:]:
             moved = safe_move(p, gdir)
-            logs.append(f"    이동: {p.name} -> {moved}")
+            logs.append(
+                f" - '{p.name}' 파일은 '{base.name}' 와 유사하여 "
+                f"그룹 {real_group_index}로 이동됨 → {moved}"
+            )
             count += 1
 
+        real_group_index += 1
+
     summary["유사 이미지 정리 수"] = count
-    logs.append(f"[유사] 총 {count}개 정리 완료.")
+    logs.append(f"[유사] 총 {count}개의 유사 이미지를 정리했습니다.")
 
 
-# ================= 해상도 기준 정리 =================
-
-def _handle_resolution(files, root: Path, logs, summary):
+# ============= 해상도 정리 =============
+def _handle_resolution(files, root, logs, summary):
     out = root / "_by_resolution"
     count = 0
 
@@ -138,81 +147,58 @@ def _handle_resolution(files, root: Path, logs, summary):
             continue
         w, h = res
         moved = safe_move(p, out / f"{w}x{h}")
-        logs.append(f"[해상도] {p.name} -> {moved}")
+        logs.append(
+            f"[해상도] '{p.name}' 파일은 해상도 {w}x{h}로 확인되어 "
+            f"'{w}x{h}' 폴더로 이동되었습니다. → {moved}"
+        )
         count += 1
 
-    summary["해상도 기준 정리 수"] = count
-    logs.append(f"[해상도] 총 {count}개 정리 완료.")
+    summary["해상도 정리"] = count
 
 
-# ================= 확장자 기준 정리 =================
-
-def _handle_ext(files, root: Path, logs, summary):
-    out = root / "_by_ext"
-    count = 0
-
-    for p in files:
-        ext = get_extension(p) or "unknown"
-        moved = safe_move(p, out / ext)
-        logs.append(f"[확장자] {p.name} -> {moved}")
-        count += 1
-
-    summary["확장자 기준 정리 수"] = count
-    logs.append(f"[확장자] 총 {count}개 정리 완료.")
-
-
-# ================= 날짜 기준 정리 =================
-
-def _handle_date(files, root: Path, logs, summary):
+# ============= 날짜 정리 =============
+def _handle_date(files, root, logs, summary):
     out = root / "_by_date"
     count = 0
 
     for p in files:
-        d = get_file_date(p)
-        moved = safe_move(p, out / str(d))
-        logs.append(f"[날짜] {p.name} -> {moved}")
+        date = get_file_date(p)
+        moved = safe_move(p, out / date)
+        logs.append(
+            f"[날짜] '{p.name}' 파일은 날짜 '{date}' 기준으로 "
+            f"'{date}' 폴더로 이동되었습니다. → {moved}"
+        )
         count += 1
 
-    summary["날짜 기준 정리 수"] = count
-    logs.append(f"[날짜] 총 {count}개 정리 완료.")
+    summary["날짜 정리"] = count
 
 
-# ================= 메인 정리 함수 =================
-
+# ============= 메인 정리 함수 =============
 def organize_images(
     root: Path,
     *,
     move_duplicates=False,
     move_similar=False,
     sort_resolution=False,
-    sort_ext=False,
     sort_date=False,
     auto=False,
 ):
     files = iter_image_files(root)
-
     logs = []
-    summary = {"전체 이미지 수": len(files)}
+    summary = {"총 이미지 수": len(files)}
 
-    logs.append(f"[INFO] 총 {len(files)}개의 이미지 발견.")
+    logs.append(f"[INFO] 총 {len(files)}개의 이미지가 발견되었습니다.")
 
-    # auto 옵션 → 모든 기능 실행
     if auto:
-        move_duplicates = move_similar = sort_resolution = sort_ext = sort_date = True
-        logs.append("[INFO] 자동 정리 모드 활성화")
+        logs.append("[INFO] 자동 정리(AUTO) 모드 활성화")
+        move_duplicates = move_similar = sort_resolution = sort_date = True
 
     if move_duplicates:
         _handle_duplicates(files, root, logs, summary)
-
     if move_similar:
         _handle_similar(files, root, logs, summary)
-
     if sort_resolution:
         _handle_resolution(files, root, logs, summary)
-
-    if sort_ext:
-        _handle_ext(files, root, logs, summary)
-
     if sort_date:
         _handle_date(files, root, logs, summary)
 
