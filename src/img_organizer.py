@@ -1,118 +1,55 @@
-import os
 import hashlib
 from pathlib import Path
-
 from PIL import Image
-import imagehash   # perceptual hash
-
-# Ã³¸®ÇÒ ÀÌ¹ÌÁö È®ÀåÀÚ ¸ñ·Ï
-IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+import imagehash
 
 
 def iter_image_files(root: Path):
-    """
-    ÀÔ·Â Æú´õ(root) ÇÏÀ§ ¸ğµç ÀÌ¹ÌÁö ÆÄÀÏ °æ·Î¸¦ ¸®½ºÆ®·Î ¹İÈ¯.
-    """
-    files = []
-    for path, dirs, filenames in os.walk(root):
-        for name in filenames:
-            ext = Path(name).suffix.lower()
-            if ext in IMAGE_EXTS:
-                files.append(Path(path) / name)
-    return files
-
-
-# -------------------------------
-# 1) ¿ÏÀü Áßº¹ Å½Áö (SHA256)
-# -------------------------------
-
-def get_file_hash(path: Path, chunk_size: int = 8192):
-    """
-    ÀÌ¹ÌÁö ÆÄÀÏÀÇ SHA256 ÇØ½Ã°ª »ı¼º.
-    """
-    h = hashlib.sha256()
-
-    with path.open("rb") as f:
-        while True:
-            chunk = f.read(chunk_size)
-            if not chunk:
-                break
-            h.update(chunk)
-
-    return h.hexdigest()
+    """root í´ë” ì•ˆì˜ ëª¨ë“  ì´ë¯¸ì§€ íŒŒì¼ì„ ì¬ê·€ì ìœ¼ë¡œ íƒìƒ‰"""
+    exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff"}
+    return [p for p in root.rglob("*") if p.suffix.lower() in exts]
 
 
 def find_exact_duplicates(files):
-    """
-    SHA256 ±â¹İ ¿ÏÀü Áßº¹ Å½Áö
-    """
-    hash_map = {}
+    """SHA256 ì´ìš© ì™„ì „ ë™ì¼ ì´ë¯¸ì§€ íƒì§€"""
+    hash_dict = {}
+    for f in files:
+        h = hashlib.sha256(f.read_bytes()).hexdigest()
+        hash_dict.setdefault(h, []).append(f)
 
-    for p in files:
-        h = get_file_hash(p)
-        hash_map.setdefault(h, []).append(p)
-
-    exact = {h: paths for h, paths in hash_map.items() if len(paths) > 1}
-    return exact
-
-
-# -------------------------------
-# 2) À¯»ç ÀÌ¹ÌÁö Å½Áö (Perceptual Hash)
-# -------------------------------
-
-def get_phash(path: Path):
-    """
-    Perceptual hash ±â¹İ ÀÌ¹ÌÁö À¯»çµµ °è»ê
-    """
-    try:
-        img = Image.open(path)
-        return imagehash.phash(img)
-    except Exception:
-        return None
-
-
-def hamming_distance(h1, h2):
-    """ÇØ¹Ö °Å¸® °è»ê"""
-    return abs(h1 - h2)
+    # 2ê°œ ì´ìƒ ëª¨ì¸ í•´ì‹œë§Œ ë°˜í™˜
+    return {h: paths for h, paths in hash_dict.items() if len(paths) > 1}
 
 
 def find_similar_images(files, threshold=5):
-    """
-    perceptual hash ±â¹İ À¯»ç ÀÌ¹ÌÁö Å½Áö.
-    threshold = Çã¿ë °Å¸® (ÀÛÀ»¼ö·Ï ¾ö°İ)
-    """
-    phash_map = {}
-    for p in files:
-        h = get_phash(p)
-        if h is not None:
-            phash_map[p] = h
-
-    checked = set()
-    groups = []
-
-    paths = list(phash_map.keys())
-
-    for i in range(len(paths)):
-        base = paths[i]
-        if base in checked:
+    """Perceptual Hash ì‚¬ìš© ìœ ì‚¬ ì´ë¯¸ì§€ íƒì§€"""
+    phashes = []
+    for f in files:
+        try:
+            ph = imagehash.phash(Image.open(f))
+            phashes.append((f, ph))
+        except Exception:
             continue
 
-        base_hash = phash_map[base]
-        group = [base]
+    groups = []
+    visited = set()
 
-        for j in range(i + 1, len(paths)):
-            comp = paths[j]
-            if comp in checked:
+    for i in range(len(phashes)):
+        if i in visited:
+            continue
+        base_f, base_h = phashes[i]
+        group = [base_f]
+        visited.add(i)
+
+        for j in range(i + 1, len(phashes)):
+            if j in visited:
                 continue
-
-            dist = hamming_distance(base_hash, phash_map[comp])
-            if dist <= threshold:
-                group.append(comp)
-                checked.add(comp)
+            f, h = phashes[j]
+            if base_h - h <= threshold:
+                group.append(f)
+                visited.add(j)
 
         if len(group) > 1:
             groups.append(group)
-
-        checked.add(base)
 
     return groups

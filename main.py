@@ -1,4 +1,5 @@
 from pathlib import Path
+import argparse
 from src.img_organizer import (
     iter_image_files,
     find_exact_duplicates,
@@ -6,48 +7,47 @@ from src.img_organizer import (
 )
 
 def main():
-    root_str = input("Á¤¸®ÇÒ ÀÌ¹ÌÁö Æú´õ °æ·Î¸¦ ÀÔ·ÂÇÏ¼¼¿ä: ")
-    root = Path(root_str)
+    parser = argparse.ArgumentParser(description="ì´ë¯¸ì§€ ì¤‘ë³µ ê²€ì‚¬ ë„êµ¬")
+    parser.add_argument("root", help="ì •ë¦¬í•  ì´ë¯¸ì§€ í´ë” ê²½ë¡œ")
+    args = parser.parse_args()
+
+    root = Path(args.root)
 
     if not root.exists():
-        print("[ERROR] °æ·Î°¡ Á¸ÀçÇÏÁö ¾Ê½À´Ï´Ù.")
+        print("[ERROR] ê²½ë¡œê°€ ì¡´ì¬í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤:", root)
         return
 
-    print("[INFO] ÀÌ¹ÌÁö ½ºÄµ Áß...")
+    print("[INFO] ì´ë¯¸ì§€ ìŠ¤ìº” ì¤‘...")
     files = iter_image_files(root)
-    print(f"[INFO] ÀÌ¹ÌÁö ÆÄÀÏ {len(files)}°³ ¹ß°ß\n")
+    print(f"[INFO] ì´ë¯¸ì§€ íŒŒì¼ {len(files)}ê°œ ë°œê²¬\n")
 
-    # ---------------------
-    # 1) ¿ÏÀü Áßº¹ Å½Áö
-    # ---------------------
-    print("[INFO] SHA256 ±â¹İ ¿ÏÀü Áßº¹ °Ë»ç Áß...")
+    # ì™„ì „ ì¤‘ë³µ (SHA256)
+    print("[INFO] SHA256 ê¸°ë°˜ ì™„ì „ ì¤‘ë³µ ê²€ì‚¬ ì¤‘...")
     exact = find_exact_duplicates(files)
 
     if exact:
-        print(f"\n[INFO] ¿ÏÀü Áßº¹ ±×·ì {len(exact)}°³ ¹ß°ß!")
+        print(f"\n[INFO] ì™„ì „ ì¤‘ë³µ ê·¸ë£¹ {len(exact)}ê°œ ë°œê²¬!")
         for i, (h, paths) in enumerate(exact.items(), start=1):
-            print(f"[Exact Group {i}] ÇØ½Ã = {h}")
+            print(f"[Exact Group {i}] í•´ì‹œ = {h}")
             for p in paths:
                 print(" -", p)
             print()
     else:
-        print("[INFO] ¿ÏÀü Áßº¹ ¾øÀ½.\n")
+        print("[INFO] ì™„ì „ ì¤‘ë³µ ì—†ìŒ.\n")
 
-    # ---------------------
-    # 2) À¯»ç ÀÌ¹ÌÁö Å½Áö
-    # ---------------------
-    print("[INFO] Perceptual hash ±â¹İ À¯»ç ÀÌ¹ÌÁö °Ë»ç Áß...")
+    # ìœ ì‚¬ ì´ë¯¸ì§€ (phash)
+    print("[INFO] perceptual hash ê¸°ë°˜ ìœ ì‚¬ ì´ë¯¸ì§€ ê²€ì‚¬ ì¤‘...")
     similar_groups = find_similar_images(files, threshold=5)
 
     if similar_groups:
-        print(f"\n[INFO] À¯»ç ÀÌ¹ÌÁö ±×·ì {len(similar_groups)}°³ ¹ß°ß!")
+        print(f"\n[INFO] ìœ ì‚¬ ì´ë¯¸ì§€ ê·¸ë£¹ {len(similar_groups)}ê°œ ë°œê²¬!")
         for i, group in enumerate(similar_groups, start=1):
             print(f"[Similar Group {i}]")
             for p in group:
                 print(" -", p)
             print()
     else:
-        print("[INFO] À¯»ç ÀÌ¹ÌÁö ¾øÀ½.\n")
+        print("[INFO] ìœ ì‚¬ ì´ë¯¸ì§€ ì—†ìŒ.\n")
 
 
 if __name__ == "__main__":
