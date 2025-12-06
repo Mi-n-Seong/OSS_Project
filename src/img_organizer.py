@@ -150,11 +150,22 @@ def _handle_resolution(files, root, logs, summary):
         res = get_resolution(p)
         if not res:
             continue
+
         w, h = res
-        moved = safe_move(p, out / f"{w}x{h}")
+        longest = max(w, h)
+
+        # 해상도 구간을 넓게 설정
+        if longest < 1280:
+            group = "small"      # 작은 이미지
+        elif longest < 2560:
+            group = "medium"     # 일반/고해상도
+        else:
+            group = "large"      # 초고해상도
+
+        moved = safe_move(p, out / group)
         logs.append(
-            f"[해상도] '{p.name}' 파일은 해상도 {w}x{h}로 확인되어 "
-            f"'{w}x{h}' 폴더로 이동되었습니다. → {moved}"
+            f"[해상도] '{p.name}' 파일은 {w}x{h} 해상도이며 "
+            f"'{group}' 그룹으로 분류되었습니다. → {moved}"
         )
         count += 1
 
