@@ -36,7 +36,7 @@ def main():
     # ---------------------
     # 2) 유사 이미지 탐지
     # ---------------------
-    print("[INFO] Perceptual hash 기반 유사 이미지 검사 중 (threshold=5)...")
+    print("[INFO] Perceptual hash 기반 유사 이미지 검사 중...")
     similar_groups = find_similar_images(files, threshold=5)
 
     if similar_groups:
