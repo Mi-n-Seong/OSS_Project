@@ -181,13 +181,16 @@ def _handle_date(files, root, logs, summary):
 
     for p in files:
         date = get_file_date(p)
-        moved = safe_copy(p, out / date)
+        date_str = date.isoformat()  # ← 날짜 문자열로 변환
+
+        moved = safe_copy(p, out / date_str)
         logs.append(
-            f"[날짜] '{p.name}' 파일은 날짜 '{date}' 폴더로 복사됨 → {moved}"
+            f"[날짜] '{p.name}' 파일은 날짜 '{date_str}' 폴더로 복사됨 → {moved}"
         )
         count += 1
 
     summary["날짜 정리"] = count
+
 
 
 # ============= 메인 정리 함수 =============
