@@ -109,18 +109,22 @@ def _handle_similar(files, root, logs, summary):
 
     out = root / "_similar"
     count = 0
-    real_group_index = 1  # 실제 생성되는 그룹 번호
+    real_group_index = 1
 
     for idx, group in enumerate(groups, start=1):
 
-        # ⚠ 그룹에 이미지가 1개뿐이면 스킵 (유사 이미지 없음)
+        # 유사 이미지가 1개뿐이면 그룹 만들지 않음
         if len(group) < 2:
             continue
 
         base = group[0]
         gdir = out / f"group_{real_group_index}"
 
-        logs.append(f"\n[유사] 그룹 {real_group_index}: 기준 이미지: {base.name}")
+        logs.append(f"\n[유사] 그룹 {real_group_index} 생성 (기준 이미지: {base.name})")
+
+        # 기준 이미지도 이동시키기
+        moved_base = safe_move(base, gdir)
+        logs.append(f" - 기준 이미지 '{base.name}' 이동됨 → {moved_base}")
 
         for p in group[1:]:
             moved = safe_move(p, gdir)
@@ -134,6 +138,7 @@ def _handle_similar(files, root, logs, summary):
 
     summary["유사 이미지 정리 수"] = count
     logs.append(f"[유사] 총 {count}개의 유사 이미지를 정리했습니다.")
+
 
 
 # ============= 해상도 정리 =============
