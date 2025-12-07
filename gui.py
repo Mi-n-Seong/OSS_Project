@@ -74,12 +74,14 @@ class ImageOrganizerGUI:
         self.btn_run = ttk.Button(opt_frame, text="🚀 정리 실행", command=self.run_organize)
         self.btn_run.grid(row=0, column=5, padx=15)
 
-        # ---------------- PROGRESS BAR (버튼 바로 밑) ----------------
+        # ---------------- PROGRESS BAR (진짜 진행률) ----------------
         self.progress = ttk.Progressbar(
             root,
-            mode="indeterminate",
+            mode="determinate",
             length=600
         )
+        self.progress["value"] = 0
+        self.progress["maximum"] = 100
         self.progress.pack(pady=10)
 
         # ---------------- MAIN LAYOUT ----------------
@@ -161,6 +163,7 @@ class ImageOrganizerGUI:
                 self.image_list.append(p)
                 self.listbox.insert(tk.END, p.name)
 
+    # ---------------- 미리보기 ----------------
     def show_preview(self, event=None):
         if not self.listbox.curselection():
             return
@@ -185,13 +188,24 @@ class ImageOrganizerGUI:
             image=self.preview_image
         )
 
+    # ---------------- 진행률 업데이트 (스레드 안전) ----------------
+    def _update_progress_threadsafe(self, current, total):
+        self.root.after(0, lambda: self._update_progress(current, total))
+
+    def _update_progress(self, current, total):
+        if total == 0:
+            return
+        percent = int((current / total) * 100)
+        self.progress["value"] = percent
+
+    # ---------------- 정리 실행 ----------------
     def run_organize(self):
         if not self.selected_folder:
             messagebox.showerror("오류", "폴더를 먼저 선택하세요.")
             return
 
         self.btn_run.config(state="disabled")
-        self.progress.start(10)
+        self.progress["value"] = 0
 
         self.log_box.config(state="normal")
         self.log_box.delete("1.0", tk.END)
@@ -201,6 +215,7 @@ class ImageOrganizerGUI:
         thread = threading.Thread(target=self._worker, daemon=True)
         thread.start()
 
+    # worker 스레드
     def _worker(self):
         summary, logs = organize_images(
             self.selected_folder,
@@ -208,12 +223,13 @@ class ImageOrganizerGUI:
             move_similar=self.opt_sim.get(),
             sort_resolution=self.opt_res.get(),
             auto=self.opt_auto.get(),
-            copy_mode=True
+            copy_mode=True,
+            progress_callback=self._update_progress_threadsafe   # ★ 진행률 전달
         )
         self.root.after(0, lambda: self._update_log(summary, logs))
 
+    # ---------------- 로그 업데이트 ----------------
     def _update_log(self, summary, logs):
-        self.progress.stop()
         self.btn_run.config(state="normal")
 
         self.log_box.config(state="normal")
@@ -224,11 +240,8 @@ class ImageOrganizerGUI:
             self.log_box.insert(tk.END, f"{k}: {v}\n")
 
         self.log_box.insert(tk.END, "\n===== 상세 로그 =====\n")
-        if logs:
-            for line in logs:
-                self.log_box.insert(tk.END, line + "\n")
-        else:
-            self.log_box.insert(tk.END, "(상세 로그 없음)\n")
+        for l in logs:
+            self.log_box.insert(tk.END, l + "\n")
 
         self.log_box.config(state="disabled")
         messagebox.showinfo("완료", "정리가 완료되었습니다!")
