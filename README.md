@@ -33,7 +33,6 @@ pHash 기반으로 시각적으로 비슷한 이미지를 감지하여
 - 정리 로그 출력  
 
 ### ✔ 안전한 동작  
-- 삭제는 실제 삭제가 아닌 안전 폴더 이동 방식  
 - 정리는 복사 기반 → 원본 유지  
 - 옵션별 기능 개별 실행 가능  
 
@@ -41,9 +40,16 @@ pHash 기반으로 시각적으로 비슷한 이미지를 감지하여
 
 ## 🖼 Screenshots
 ![main_ui](docs/main_ui.png)  
+- 실행 시 ui 모습
+
 ![folder_ex](docs/folder_ex.png)
+- 정리 전 폴더 예시
+
 ![folder_ex_1](docs/folder_ex_1.png)
+- 정리 후 폴더 예시
+
 ![folder_ex_2](docs/folder_ex_2.png)
+- 정리된 폴더 내용
 
 ---
 
