@@ -76,25 +76,25 @@ class ImageOrganizerGUI:
 
         ttk.Checkbutton(
             opt_frame,
-            text="정확한 중복(삭제)",
+            text="중복 이미지 삭제",
             variable=self.opt_dup
         ).grid(row=0, column=1)
 
         ttk.Checkbutton(
             opt_frame,
-            text="유사 이미지",
+            text="유사 이미지 묶음",
             variable=self.opt_sim
         ).grid(row=0, column=2)
 
         ttk.Checkbutton(
             opt_frame,
-            text="해상도 정리",
+            text="해상도 별 분류",
             variable=self.opt_res
         ).grid(row=0, column=3)
 
         ttk.Checkbutton(
             opt_frame,
-            text="자동정리",
+            text="전체 선택",
             variable=self.opt_auto,
             command=self.apply_auto
         ).grid(row=0, column=4)
@@ -241,7 +241,7 @@ class ImageOrganizerGUI:
         if self.opt_dup.get():
             if messagebox.askyesno(
                 "경고",
-                "정확한 중복 이미지가 발견되면\n대표 1개를 제외한 나머지는 휴지통으로 이동됩니다.\n계속할까요?"
+                "중복 이미지가 발견되면\n대표 1개를 제외한 나머지는 삭제됩니다.\n계속할까요?"
             ) is False:
                 return
 

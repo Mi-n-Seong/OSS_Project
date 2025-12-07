@@ -1,10 +1,9 @@
+# src/img_organizer.py
 from pathlib import Path
 import hashlib
-import imagehash
 from PIL import Image
-from send2trash import send2trash  # 휴지통 이동
-from src.file_utils import safe_copy
-
+import imagehash
+from src.file_utils import safe_copy, safe_delete
 
 SUPPORTED_EXT = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}
 
@@ -13,7 +12,6 @@ def iter_image_files(root: Path):
     return [p for p in root.rglob("*") if p.suffix.lower() in SUPPORTED_EXT]
 
 
-# ====================== SHA256 ======================
 def sha256(path: Path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -30,7 +28,6 @@ def find_exact_duplicates(files):
     return {k: v for k, v in m.items() if len(v) > 1}
 
 
-# ====================== pHash ======================
 def phash(path: Path):
     try:
         with Image.open(path) as img:
@@ -48,8 +45,8 @@ def find_similar_images(files, threshold=6):
 
     used = set()
     groups = []
-
     items = list(hashes.items())
+
     for i in range(len(items)):
         img1, h1 = items[i]
         if img1 in used:
@@ -61,7 +58,6 @@ def find_similar_images(files, threshold=6):
             img2, h2 = items[j]
             if img2 in used:
                 continue
-
             if h1 - h2 <= threshold:
                 group.append(img2)
                 used.add(img2)
@@ -73,7 +69,6 @@ def find_similar_images(files, threshold=6):
     return groups
 
 
-# ====================== 해상도 ======================
 def get_resolution(path: Path):
     try:
         with Image.open(path) as img:
@@ -84,99 +79,88 @@ def get_resolution(path: Path):
 
 def classify_resolution(w, h):
     size = max(w, h)
-
-    if size < 720:
-        return "low_0-720p"
-    elif size < 1080:
-        return "mid_720-1080p"
-    elif size < 1440:
-        return "high_1080-1440p"
-    else:
-        return "ultra_1440p+"
+    if size < 720: return "low_0-720p"
+    elif size < 1440: return "mid_720-1440p"
+    elif size < 2880: return "high_1440-2880p"
+    else: return "ultra_2880p+"
 
 
-# ====================== 메인 처리 함수 ======================
+# ====================== 메인 처리 ======================
 def organize_images(
     root: Path,
     move_duplicates=False,
     move_similar=False,
     sort_resolution=False,
     auto=False,
-    copy_mode=False,
-    delete_duplicates=False,       # 🔥 삭제 옵션 추가
+    delete_duplicates=False,  # ★ 자동 삭제 ON
 ):
     files = iter_image_files(root)
     logs = []
     summary = {}
 
+    # AUTO → 모든 기능 ON
     if auto:
         move_duplicates = True
         move_similar = True
         sort_resolution = True
-        logs.append("[AUTO] 모든 옵션이 자동으로 선택됨")
+        delete_duplicates = True
+        logs.append("[AUTO] 모든 옵션 자동 적용")
 
-    # ---------- 정확한 중복 ----------
+    # --- 정확한 중복 ---
     if move_duplicates:
-        logs.append("[중복] 정확한 중복 검사 시작")
         dup_map = find_exact_duplicates(files)
-
         deleted_count = 0
+
+        logs.append("[중복] 정확한 중복 검사 시작")
 
         for h, group in dup_map.items():
             keep = group[0]
-            logs.append(f"[중복] 기준 이미지 유지 → {keep.name}")
+            logs.append(f"[중복] 기준 이미지 유지: {keep}")
 
+            # ★ 중복 자동 삭제
             for p in group[1:]:
-
                 if delete_duplicates:
-                    # 휴지통 이동
-                    send2trash(str(p))
-                    logs.append(f"  - 삭제됨(휴지통 이동): {p.name}")
-                    deleted_count += 1
-
+                    if safe_delete(p):
+                        deleted_count += 1
+                        logs.append(f"  삭제됨 → {p}")
                 else:
-                    # 복사 정리 모드
-                    dst = safe_copy(p, (root / "_duplicates" / h[:8]))
-                    logs.append(f"  - 복사됨: {p.name} → {dst}")
+                    pass  # 삭제 안 함
 
-        summary["정확한 중복 삭제 수"] = deleted_count
+        summary["중복 삭제 수"] = deleted_count
+        logs.append(f"[중복] 총 {deleted_count}개 삭제 완료")
 
-    # ---------- 유사 이미지 ----------
+    # --- 유사 이미지 ---
     if move_similar:
-        logs.append("[유사] 유사 이미지 검사 시작")
-
         groups = find_similar_images(files)
         out = root / "_similar"
-        total = 0
+        moved = 0
 
-        for idx, g in enumerate(groups, 1):
-            base = out / f"group_{idx}"
-            keep = g[0]
-            logs.append(f"[유사] 그룹 {idx} 대표 이미지 → {keep.name}")
+        logs.append("[유사] 유사 이미지 검사 시작")
 
-            for p in g[1:]:
-                dst = safe_copy(p, base)
-                logs.append(f"  - 유사 이미지 복사됨: {p.name} → {dst}")
-                total += 1
+        for idx, group in enumerate(groups, 1):
+            keep = group[0]
+            for p in group[1:]:
+                dst = safe_copy(p, out / f"group_{idx}")
+                logs.append(f"  유사 그룹 복사: {p} → {dst}")
+                moved += 1
 
-        summary["유사 정리 수"] = total
+        summary["유사 정리 수"] = moved
 
-    # ---------- 해상도 정리 ----------
+    # --- 해상도 정리 ---
     if sort_resolution:
-        logs.append("[해상도] 해상도 정리 시작")
-
         out = root / "_resolution"
-        total = 0
+        count = 0
+
+        logs.append("[해상도] 해상도 정리 시작")
 
         for p in files:
             r = get_resolution(p)
             if r:
                 w, h = r
-                folder = classify_resolution(w, h)
-                dst = safe_copy(p, out / folder)
-                logs.append(f"  - {p.name} → {dst}")
-                total += 1
+                dst = safe_copy(p, out / classify_resolution(w, h))
+                logs.append(f"  복사됨: {p} → {dst}")
+                count += 1
 
-        summary["해상도 정리 수"] = total
+        summary["해상도 정리 수"] = count
 
     return summary, logs
