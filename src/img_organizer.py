@@ -93,7 +93,8 @@ def classify_resolution(w, h):
     else:
         return "ultra_1440p+"
 
-# ====================== 처리 ======================
+
+# ====================== 메인 처리 함수 ======================
 def organize_images(
     root: Path,
     move_duplicates=False,
@@ -110,38 +111,67 @@ def organize_images(
         move_duplicates = True
         move_similar = True
         sort_resolution = True
-        logs.append("[AUTO] 모든 옵션 적용됨")
+        logs.append("[AUTO] 모든 옵션이 자동으로 선택됨")
 
-    # 정확한 중복
+    # ---------- 정확한 중복 ----------
     if move_duplicates:
+        logs.append("[중복] 정확한 중복 검사 시작")
         dup_map = find_exact_duplicates(files)
+
         out = root / "_duplicates"
+        total_moved = 0
+
         for h, group in dup_map.items():
             keep = group[0]
-            for p in group[1:]:
-                safe_copy(p, out / h[:8])
-        summary["중복 정리 수"] = sum(len(v) - 1 for v in dup_map.values())
+            logs.append(f"[중복] 기준 이미지 유지 → {keep.name}")
 
-    # 유사 이미지
+            for p in group[1:]:
+                dst = safe_copy(p, out / h[:8])
+                logs.append(f"  - 복사됨: {p.name} → {dst}")
+                total_moved += 1
+
+        summary["중복 정리 수"] = total_moved
+        logs.append(f"[중복] 총 {total_moved}개 복사 완료")
+
+    # ---------- 유사 이미지 ----------
     if move_similar:
+        logs.append("[유사] 유사 이미지 검사 시작")
+
         groups = find_similar_images(files)
         out = root / "_similar"
-        for idx, g in enumerate(groups, 1):
-            base = out / f"group_{idx}"
-            for p in g:
-                safe_copy(p, base)
-        summary["유사 정리 수"] = len(groups)
+        total = 0
 
-    # 해상도 범위 정리
+        for idx, group in enumerate(groups, 1):
+            base = out / f"group_{idx}"
+            keep = group[0]
+
+            logs.append(f"[유사] 그룹 {idx} 대표 이미지 → {keep.name}")
+
+            for p in group[1:]:
+                dst = safe_copy(p, base)
+                logs.append(f"  - 유사 이미지 복사됨: {p.name} → {dst}")
+                total += 1
+
+        summary["유사 정리 수"] = total
+        logs.append(f"[유사] 총 {total}개 복사 완료")
+
+    # ---------- 해상도 정리 ----------
     if sort_resolution:
+        logs.append("[해상도] 해상도 정리 시작")
+
         out = root / "_resolution"
+        total = 0
+
         for p in files:
             r = get_resolution(p)
             if r:
                 w, h = r
                 folder = classify_resolution(w, h)
-                safe_copy(p, out / folder)
+                dst = safe_copy(p, out / folder)
+                logs.append(f"  - {p.name} → {dst}")
+                total += 1
 
-        summary["해상도 정리 수"] = len(files)
+        summary["해상도 정리 수"] = total
+        logs.append(f"[해상도] 총 {total}개 복사 완료")
 
     return summary, logs
