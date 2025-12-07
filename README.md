@@ -75,8 +75,8 @@ pHash 기반으로 시각적으로 비슷한 이미지를 감지하여
 
 리포지토리를 클론합니다:
 
-    git clone https://github.com/YourName/ImageOrganizer.git
-    cd ImageOrganizer
+    git clone https://github.com/Mi-n-Seong/OSS_Project.git
+    cd OSS_Project
 
 필요 라이브러리를 설치합니다:
 
