@@ -22,9 +22,9 @@ pHash 기반으로 시각적으로 비슷한 이미지를 감지하여
 ### ✔ 해상도 자동 분류  
 이미지의 해상도를 기준으로 다음과 같이 자동 분류합니다:
 - low_0-720p  
-- mid_720-1080p  
-- high_1080-1440p  
-- ultra_1440p+
+- mid_720-1440p  
+- high_1440-2880p  
+- ultra_2880p+
 
 ### ✔ GUI 이미지 정리 기능  
 - 폴더 선택  
@@ -40,11 +40,10 @@ pHash 기반으로 시각적으로 비슷한 이미지를 감지하여
 ---
 
 ## 🖼 Screenshots
-아래 이미지는 예시입니다. 실제 스크린샷은 docs 폴더에 저장 후 파일명을 수정해 넣어주세요.
-
 ![main_ui](docs/main_ui.png)  
-![log_example](docs/log_example.png)  
-![folder_result](docs/folder_result.png)
+![folder_ex](docs/folder_ex.png)
+![folder_ex_1](docs/folder_ex_1.png)
+![folder_ex_2](docs/folder_ex_2.png)
 
 ---
 
@@ -97,23 +96,7 @@ GUI 실행:
 
 ## 🔍 Example Log Output
 
-    ===== 요약 =====
-    중복 정리 수: 3
-    유사 정리 수: 6
-    해상도 정리 수: 42
-
-    ===== 상세 로그 =====
-    [중복] 검사 시작
-     representative kept: img01.png
-     deleted → img01 (1).png
-     deleted → img01_copy.png
-
-    [유사] similarity group 2
-     representative: bg_01.png
-     copied → bg_01_edited.png
-
-    [해상도] high_1080-1440p
-     copied → landscape_big.jpg
+![log_ex](docs/log_ex.png)  
 
 ---
 
