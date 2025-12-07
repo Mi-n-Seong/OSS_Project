@@ -1,8 +1,9 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
+import threading
 
-from src.img_organizer import organize_images  # ✅ 파일 이름 정확히 수정
+from src.img_organizer import organize_images
 
 
 class ImageOrganizerGUI:
@@ -71,36 +72,13 @@ class ImageOrganizerGUI:
         self.opt_res = tk.BooleanVar()
         self.opt_auto = tk.BooleanVar()
 
-        ttk.Checkbutton(
-            opt_frame,
-            text="정확한 중복",
-            variable=self.opt_dup
-        ).grid(row=0, column=1)
+        ttk.Checkbutton(opt_frame, text="정확한 중복", variable=self.opt_dup).grid(row=0, column=1)
+        ttk.Checkbutton(opt_frame, text="유사 이미지", variable=self.opt_sim).grid(row=0, column=2)
+        ttk.Checkbutton(opt_frame, text="해상도 정리", variable=self.opt_res).grid(row=0, column=3)
+        ttk.Checkbutton(opt_frame, text="자동정리", variable=self.opt_auto,
+                        command=self.apply_auto).grid(row=0, column=4)
 
-        ttk.Checkbutton(
-            opt_frame,
-            text="유사 이미지",
-            variable=self.opt_sim
-        ).grid(row=0, column=2)
-
-        ttk.Checkbutton(
-            opt_frame,
-            text="해상도 정리",
-            variable=self.opt_res
-        ).grid(row=0, column=3)
-
-        ttk.Checkbutton(
-            opt_frame,
-            text="자동정리",
-            variable=self.opt_auto,
-            command=self.apply_auto
-        ).grid(row=0, column=4)
-
-        self.btn_run = ttk.Button(
-            opt_frame,
-            text="🚀 정리 실행",
-            command=self.run_organize
-        )
+        self.btn_run = ttk.Button(opt_frame, text="🚀 정리 실행", command=self.run_organize)
         self.btn_run.grid(row=0, column=5, padx=15)
 
         # ---------- 메인 레이아웃 ----------
@@ -112,13 +90,8 @@ class ImageOrganizerGUI:
         left.pack(side="left", fill="y")
         left.pack_propagate(False)
 
-        tk.Label(
-            left,
-            text="📃 이미지 목록",
-            fg="white",
-            bg="#1e1f22",
-            font=("Malgun Gothic", 12, "bold")
-        ).pack(pady=5)
+        tk.Label(left, text="📃 이미지 목록", fg="white", bg="#1e1f22",
+                 font=("Malgun Gothic", 12, "bold")).pack(pady=5)
 
         self.listbox = tk.Listbox(
             left,
@@ -133,13 +106,8 @@ class ImageOrganizerGUI:
         right = tk.Frame(main_frame, bg="#1e1f22")
         right.pack(side="right", fill="both", expand=True)
 
-        tk.Label(
-            right,
-            text="📄 로그 출력",
-            fg="white",
-            bg="#1e1f22",
-            font=("Malgun Gothic", 12, "bold")
-        ).pack(pady=5)
+        tk.Label(right, text="📄 로그 출력", fg="white", bg="#1e1f22",
+                 font=("Malgun Gothic", 12, "bold")).pack(pady=5)
 
         self.log_box = tk.Text(
             right,
@@ -150,7 +118,7 @@ class ImageOrganizerGUI:
         )
         self.log_box.pack(fill="both", expand=True, padx=10, pady=10)
 
-    # -------------------- 옵션 자동 적용 --------------------
+    # -------------------- 자동 정리 --------------------
     def apply_auto(self):
         if self.opt_auto.get():
             self.opt_dup.set(True)
@@ -166,7 +134,7 @@ class ImageOrganizerGUI:
         self.selected_folder = Path(folder)
         self.load_images()
 
-    # -------------------- 이미지 로딩 --------------------
+    # -------------------- 이미지 로드 --------------------
     def load_images(self):
         self.image_list.clear()
         self.listbox.delete(0, tk.END)
@@ -178,12 +146,19 @@ class ImageOrganizerGUI:
                 self.image_list.append(p)
                 self.listbox.insert(tk.END, p.name)
 
-    # -------------------- 정리 실행 --------------------
+    # -------------------- 정리 실행 (스레드 적용됨) --------------------
     def run_organize(self):
         if not self.selected_folder:
             messagebox.showerror("오류", "폴더를 먼저 선택하세요.")
             return
 
+        # 🔥 GUI 멈춤 방지: 스레드에서 실행
+        thread = threading.Thread(target=self._worker)
+        thread.daemon = True
+        thread.start()
+
+    # -------------------- 백그라운드 작업 --------------------
+    def _worker(self):
         dup = self.opt_dup.get()
         sim = self.opt_sim.get()
         res = self.opt_res.get()
@@ -198,11 +173,14 @@ class ImageOrganizerGUI:
             copy_mode=True
         )
 
-        # 로그 출력
+        # 🔥 GUI 업데이트는 메인 스레드에서만 가능 → after 사용
+        self.root.after(0, lambda: self._update_log(summary, logs))
+
+    # -------------------- 로그 출력 --------------------
+    def _update_log(self, summary, logs):
         self.log_box.configure(state="normal")
         self.log_box.delete("1.0", tk.END)
 
-        # 요약 먼저
         self.log_box.insert(tk.END, "===== 요약 =====\n")
         for k, v in summary.items():
             self.log_box.insert(tk.END, f"{k}: {v}\n")
@@ -212,7 +190,6 @@ class ImageOrganizerGUI:
             self.log_box.insert(tk.END, line + "\n")
 
         self.log_box.configure(state="disabled")
-
         messagebox.showinfo("완료", "정리가 완료되었습니다!")
 
 
