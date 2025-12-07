@@ -42,11 +42,17 @@ pHash 기반으로 시각적으로 비슷한 이미지를 감지하여
 ![main_ui](docs/main_ui.png)  
 - 실행 시 ui 모습
 
+
+
 ![folder_ex](docs/folder_ex.png)
 - 정리 전 폴더 예시
 
+
+
 ![folder_ex_1](docs/folder_ex_1.png)
 - 정리 후 폴더 예시
+
+
 
 ![folder_ex_2](docs/folder_ex_2.png)
 - 정리된 폴더 내용
