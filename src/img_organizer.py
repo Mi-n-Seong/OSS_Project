@@ -25,7 +25,9 @@ def find_exact_duplicates(files):
     for p in files:
         h = sha256(p)
         m.setdefault(h, []).append(p)
-    return {k: v for v in m.items() if len(v) > 1}
+
+    return {k: v for k, v in m.items() if len(v) > 1}
+
 
 
 def phash(path: Path):
@@ -99,8 +101,9 @@ def organize_images(
     sort_resolution=False,
     auto=False,
     copy_mode=False,
-    progress_callback=None,  # ★ 진행률 콜백 추가
+    progress_callback=None,
 ):
+
     files = iter_image_files(root)
     logs = []
     summary = {}
